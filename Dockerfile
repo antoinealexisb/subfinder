@@ -1,11 +1,20 @@
 # Build Container
-FROM golang:1.13.4-alpine3.10 AS build-env
-MAINTAINER Ice3man (nizamul@projectdiscovery.io)
+FROM golang:1.9.4-alpine3.7 AS build-env
 RUN apk add --no-cache --upgrade git openssh-client ca-certificates
 RUN go get -u github.com/golang/dep/cmd/dep
 WORKDIR /go/src/app
 
-# Install
-RUN go get -u github.com/projectdiscovery/subfinder/cmd/subfinder
+# Cache the dependencies early
+COPY Gopkg.toml Gopkg.lock ./
+RUN dep ensure -vendor-only -v
 
-ENTRYPOINT ["subfinder"]
+# Build
+COPY main.go ./
+RUN go build -o ./subfinder *.go
+
+# Final Container
+FROM alpine:3.7
+COPY --from=build-env /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY --from=build-env /go/src/app/subfinder /usr/bin/subfinder
+
+ENTRYPOINT ["/usr/bin/subfinder"]
